@@ -27,11 +27,9 @@ jobs:
       - name: Apply XR1710G modifications
         run: |
           set -ex
-
           # --- 1. Replace ubi2-oc bridge offload with offload branch version ---
           echo "--- Dropping ubi2-oc 675 patches ---"
           rm -f target/linux/generic/pending-6.18/675-*.patch
-
           echo "--- Installing offload 675-01~08 (PR#24038 bridge offload, optimized) ---"
           OFFLOAD_RAW="https://raw.githubusercontent.com/OpenWRT-fanboy/OpenW1700k/offload"
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
@@ -50,11 +48,9 @@ jobs:
             $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-07-bridge-Introduce-DEV_PATH_BR_VLAN_KEEP_HW.patch
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
             $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-08-bridge-Add-filling-forward-path-port-to-port.patch
-
           # --- 2. YYH2913: XR1710G device tree ---
           curl -sSL -o target/linux/airoha/dts/an7581-xr1710g-ubi.dts \
             https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/dts/an7581-xr1710g-ubi.dts
-
           # --- 3. YYH2913: essential XR1710G patches ---
           YYH_RAW="https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/patches-6.18"
           curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/620-net-pcs-airoha-fix-USXGMII-rate-adaptation-on-speed.patch
@@ -62,12 +58,8 @@ jobs:
           curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/921-net-airoha-npu-fix-firmware-loading-issue.patch
           curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/922-net-airoha-classify-external-lan-ports-from-DT.patch
           curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/9990-net-airoha-bind-WLAN-bound-flows-on-PPE-driver-L2-cache-miss.patch
-
           # --- 4. Enable new kernel option introduced by bridge offload 675 patches ---
           echo "CONFIG_NF_FLOW_TABLE_BRIDGE=m" >> target/linux/airoha/config-6.18
-
-          # --- 5. XR1710G device definition (W1700K pattern) ---
-
           # --- 5. XR1710G device definition (W1700K pattern) ---
           cat >> target/linux/airoha/image/an7581.mk << 'XR1710G'
           define Device/gemtek_xr1710g-ubi
@@ -109,12 +101,10 @@ jobs:
           endef
           TARGET_DEVICES += gemtek_xr1710g-ubi
           XR1710G
-
           echo "XR1710G modifications applied"
 
       - name: Add third-party apps
         run: |
-          # Working feeds
           cat >> feeds.conf.default << 'EOF'
           src-git openclash https://github.com/vernesong/OpenClash.git;master
           src-git passwall https://github.com/Openwrt-Passwall/openwrt-passwall.git;main
@@ -122,17 +112,30 @@ jobs:
           src-git lucky https://github.com/gdy666/luci-app-lucky.git;main
           src-git ddnsgo https://github.com/sirpdboy/luci-app-ddns-go.git;main
           EOF
-          # These repos break feed indexing (grep/shell escaping bug) — clone directly
           git clone --depth 1 https://github.com/pymumu/openwrt-smartdns.git package/smartdns
           git clone --depth 1 https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns
           git clone --depth 1 https://github.com/kongfl888/luci-app-adguardhome.git package/luci-app-adguardhome
           git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
           git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
-
-          # Fix smartdns: webui download is unconditional but pymumu/smartdns-webui repo is gone
-          # Gate the download behind smartdns-ui (which we don't enable) to avoid HTTP 404
           sed -i 's/\$(eval \$(call Download,smartdns-webui))/ifdef CONFIG_PACKAGE_smartdns-ui\n\$(eval \$(call Download,smartdns-webui))\nendif/' package/smartdns/Makefile
 
+      # ── Cache: DL_DIR (source tarballs) ──
+      - name: Cache DL_DIR
+        uses: actions/cache@v4
+        with:
+          path: dl
+          key: xr1700k-dl-${{ hashFiles('feeds.conf.default') }}
+          restore-keys: xr1700k-dl-
+
+      # ── Cache: cross toolchain (GCC/binutils/Rust host) ──
+      - name: Cache toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            staging_dir/host
+            staging_dir/toolchain-*
+          key: xr1700k-tc-${{ hashFiles('toolchain/**', 'include/toolchain*.mk') }}
+          restore-keys: xr1700k-tc-
 
       - name: Update feeds
         run: |
@@ -148,6 +151,9 @@ jobs:
           CONFIG_CCACHE=y
           CONFIG_KERNEL_DEVMEM=y
           CONFIG_BUSYBOX_CUSTOM=y
+          CONFIG_BUILDBOT=y
+          CONFIG_AUTOREMOVE=y
+          CONFIG_CLEAN_IPKG=y
           CONFIG_BUSYBOX_CONFIG_DEVMEM=y
           CONFIG_LIBCURL_COOKIES=y
           CONFIG_LIBCURL_FILE=y
@@ -159,13 +165,36 @@ jobs:
           EOF
           make defconfig
 
+      # ── Cache: ccache (OpenWrt default: $(TOPDIR)/.ccache) ──
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: xr1700k-ccache-${{ hashFiles('.config') }}
+          restore-keys: xr1700k-ccache-
+
       - name: Show build config
         run: make menuconfig_JSON 2>/dev/null || grep -E "^CONFIG_" .config | sort
 
       - name: Build firmware
         run: |
           set -o pipefail
-          make -j$(nproc) V=s 2>&1 | tee build.log
+          # -k = keep going: one package failure doesn't mask the rest
+          make -j$(nproc) -k V=s 2>&1 | tee build.log
+
+      - name: Check for errors
+        if: always()
+        run: |
+          ERRORS=$(grep -c "^ERROR:\|make\[.*\]: \*\*\* \[.*\] Error" build.log 2>/dev/null || true)
+          ITB_COUNT=$(ls bin/targets/airoha/an7581/*sysupgrade.itb 2>/dev/null | wc -l)
+          if [ "$ITB_COUNT" -gt 0 ]; then
+            echo "ITB found ($ITB_COUNT) — firmware built (may have non-fatal errors)"
+            ls -lh bin/targets/airoha/an7581/
+          else
+            echo "No ITB — build failed. Error count: $ERRORS"
+            grep "^ERROR:\|make\[.*\]: \*\*\* \[.*\] Error" build.log | head -20
+            exit 1
+          fi
 
       - name: Prepare artifacts
         if: always()
