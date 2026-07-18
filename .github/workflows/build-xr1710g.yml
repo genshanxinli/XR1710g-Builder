@@ -67,7 +67,12 @@ jobs:
           curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/922-net-airoha-classify-external-lan-ports-from-DT.patch
           curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/9990-net-airoha-bind-WLAN-bound-flows-on-PPE-driver-L2-cache-miss.patch
 
-          # --- 4. XR1710G device definition (W1700K pattern) ---
+          # --- 4. Enable new kernel option introduced by bridge offload 675 patches ---
+          echo "CONFIG_NF_FLOW_TABLE_BRIDGE=m" >> target/linux/airoha/config-6.18
+
+          # --- 5. XR1710G device definition (W1700K pattern) ---
+
+          # --- 5. XR1710G device definition (W1700K pattern) ---
           cat >> target/linux/airoha/image/an7581.mk << 'XR1710G'
 
           define Device/gemtek_xr1710g-ubi
