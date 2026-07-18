@@ -148,7 +148,6 @@ jobs:
           CONFIG_TARGET_airoha_an7581=y
           CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi=y
           CONFIG_DEVEL=y
-          CONFIG_CCACHE=y
           CONFIG_KERNEL_DEVMEM=y
           CONFIG_BUSYBOX_CUSTOM=y
           CONFIG_BUILDBOT=y
@@ -165,13 +164,6 @@ jobs:
           EOF
           make defconfig
 
-      # ── Cache: ccache (OpenWrt default: $(TOPDIR)/.ccache) ──
-      - name: Cache ccache
-        uses: actions/cache@v4
-        with:
-          path: .ccache
-          key: xr1700k-ccache-${{ hashFiles('.config') }}
-          restore-keys: xr1700k-ccache-
 
       - name: Show build config
         run: make menuconfig_JSON 2>/dev/null || grep -E "^CONFIG_" .config | sort
