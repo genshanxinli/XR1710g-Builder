@@ -15,6 +15,7 @@ jobs:
         with:
           repository: OpenWRT-fanboy/OpenW1700k
           ref: ubi2-oc
+          fetch-depth: 0
 
       - name: Setup build deps
         run: |
