@@ -32,7 +32,7 @@ jobs:
           echo "--- Dropping ubi2-oc 675 patches ---"
           rm -f target/linux/generic/pending-6.18/675-*.patch
 
-          echo "--- Installing offload 675-01~10 (PR#24038 bridge offload) ---"
+          echo "--- Installing offload 675-01~08 (PR#24038 bridge offload, optimized) ---"
           OFFLOAD_RAW="https://raw.githubusercontent.com/OpenWRT-fanboy/OpenW1700k/offload"
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
             $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-01-net-export-dev-fill-forward-path.patch
@@ -41,19 +41,15 @@ jobs:
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
             $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-03-nft_flow_offload-add-bridging-support.patch
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
-            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-04-nft_flow_offload-add-DEV_PATH_MTK_WDMA-path.patch
+            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-04-netfilter-nf_flow_table-add-bridge-flowtable-type.patch
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
-            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-05-nft_flow_offload-add-vlan-passthrough-support.patch
+            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-05-net-core-dev-Add-dev_fill_bridge_path.patch
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
-            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-06-netfilter-nf_flow_table-add-bridge-flowtable-type.patch
+            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-06-netfilter-bridge-Add-conntrack-double-vlan-pppoe.patch
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
-            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-07-net-core-dev-Add-dev_fill_bridge_path.patch
+            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-07-bridge-Introduce-DEV_PATH_BR_VLAN_KEEP_HW.patch
           curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
-            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-08-netfilter-bridge-Add-conntrack-double-vlan-pppoe.patch
-          curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
-            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-09-bridge-Introduce-DEV_PATH_BR_VLAN_KEEP_HW.patch
-          curl -sSLO --output-dir target/linux/generic/pending-6.18/ \
-            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-10-bridge-Add-filling-forward-path-port-to-port.patch
+            $OFFLOAD_RAW/target/linux/generic/pending-6.18/675-08-bridge-Add-filling-forward-path-port-to-port.patch
 
           # --- 2. YYH2913: XR1710G device tree ---
           curl -sSL -o target/linux/airoha/dts/an7581-xr1710g-ubi.dts \
@@ -74,7 +70,6 @@ jobs:
 
           # --- 5. XR1710G device definition (W1700K pattern) ---
           cat >> target/linux/airoha/image/an7581.mk << 'XR1710G'
-
           define Device/gemtek_xr1710g-ubi
             DEVICE_VENDOR := Gemtek
             DEVICE_MODEL := XR1710G
@@ -138,15 +133,17 @@ jobs:
           # Gate the download behind smartdns-ui (which we don't enable) to avoid HTTP 404
           sed -i 's/\$(eval \$(call Download,smartdns-webui))/ifdef CONFIG_PACKAGE_smartdns-ui\n\$(eval \$(call Download,smartdns-webui))\nendif/' package/smartdns/Makefile
 
+
       - name: Update feeds
         run: |
           ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          # Install only packages referenced in DEVICE_PACKAGES (not -a — avoids pulling 100+ unneeded)
+          ./scripts/feeds install luci-app-openclash luci-app-passwall luci-app-lucky luci-app-ddns-go \
+            sing-box xray-core shadowsocks-rust-sslocal haproxy
 
       - name: Configure firmware
         run: |
           cat > .config << 'EOF'
-          CONFIG_TARGET_airoha=y
           CONFIG_TARGET_airoha_an7581=y
           CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi=y
           CONFIG_DEVEL=y
