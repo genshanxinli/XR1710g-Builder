@@ -134,6 +134,10 @@ jobs:
           git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
           git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
 
+          # Fix smartdns: webui download is unconditional but pymumu/smartdns-webui repo is gone
+          # Gate the download behind smartdns-ui (which we don't enable) to avoid HTTP 404
+          sed -i 's/\$(eval \$(call Download,smartdns-webui))/ifdef CONFIG_PACKAGE_smartdns-ui\n\$(eval \$(call Download,smartdns-webui))\nendif/' package/smartdns/Makefile
+
       - name: Update feeds
         run: |
           ./scripts/feeds update -a
