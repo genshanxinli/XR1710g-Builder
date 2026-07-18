@@ -137,9 +137,7 @@ jobs:
       - name: Update feeds
         run: |
           ./scripts/feeds update -a
-          # Install only packages referenced in DEVICE_PACKAGES (not -a — avoids pulling 100+ unneeded)
-          ./scripts/feeds install luci-app-openclash luci-app-passwall luci-app-lucky luci-app-ddns-go \
-            sing-box xray-core shadowsocks-rust-sslocal haproxy
+          ./scripts/feeds install -a
 
       - name: Configure firmware
         run: |
