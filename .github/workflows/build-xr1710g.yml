@@ -44,9 +44,8 @@ jobs:
               "$OFFLOAD_RAW/target/linux/generic/pending-6.18/$patch"
             echo "  Downloaded $patch ($(wc -c < "target/linux/generic/pending-6.18/$patch") bytes)"
           done
-          # Verify patches have valid content (not HTML error pages)
           for f in target/linux/generic/pending-6.18/675-*.patch; do
-            head -c 200 "$f" | grep -aq "diff --git\|^---\|^From:" || { echo "ERROR: $f is not a valid patch file"; exit 1; }
+            head -c 200 "$f" | grep -aq "diff --git\|^Subject:\|^From \|^From:\|^---" || { echo "ERROR: $f is not a valid patch file"; exit 1; }
             echo "  Verified $f"
           done
           # --- 2. YYH2913: XR1710G device tree ---
@@ -69,7 +68,7 @@ jobs:
                    target/linux/airoha/patches-6.18/921-*.patch \
                    target/linux/airoha/patches-6.18/922-*.patch \
                    target/linux/airoha/patches-6.18/9990-*.patch; do
-            head -c 200 "$f" | grep -aq "diff --git\|^---\|^From:" || { echo "ERROR: $f is not a valid patch"; exit 1; }
+            head -c 200 "$f" | grep -aq "diff --git\|^Subject:\|^From \|^From:\|^---" || { echo "ERROR: $f is not a valid patch"; exit 1; }
             echo "  Verified $f"
           done
           # --- 4. Enable new kernel option introduced by bridge offload 675 patches ---
