@@ -42,6 +42,8 @@ jobs:
             675-06-net-bridge-br_fdb_update-notify-on-same-port-reactivation.patch; do
             curl -sfSL -o "target/linux/generic/pending-6.18/$patch" \
               "$OFFLOAD_RAW/target/linux/generic/pending-6.18/$patch"
+            echo "  Downloaded $patch ($(wc -c < "target/linux/generic/pending-6.18/$patch") bytes)"
+          done
           # Verify patches have valid content (not HTML error pages)
           for f in target/linux/generic/pending-6.18/675-*.patch; do
             head -c 200 "$f" | grep -aq "diff --git\|^---\|^From:" || { echo "ERROR: $f is not a valid patch file"; exit 1; }
