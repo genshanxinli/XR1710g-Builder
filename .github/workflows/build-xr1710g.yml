@@ -58,9 +58,10 @@ jobs:
             curl -sfSL -o "target/linux/airoha/patches-6.18/$patch" "$YYH_RAW/$patch"
             echo "  Downloaded $patch ($(wc -c < "target/linux/airoha/patches-6.18/$patch") bytes)"
           done
-          # --- 4. Enable new kernel option introduced by bridge offload 675 patches ---
-          echo "CONFIG_NF_FLOW_TABLE_BRIDGE=m" >> target/linux/airoha/config-6.18
-          # --- 5. XR1710G device definition (W1700K pattern) ---
+          # --- 4. Kconfig has no default → oldconfig prompts (NEW) → fix by adding default m
+          sed -i '/depends on NF_TABLES_BRIDGE$/a +	default m' \
+            target/linux/generic/pending-6.18/675-04-netfilter-nf_flow_table-add-bridge-flowtable-type.patch
+          echo "Patched 675-04: NF_FLOW_TABLE_BRIDGE default m"
           cat >> target/linux/airoha/image/an7581.mk << 'XR1710G'
           define Device/gemtek_xr1710g-ubi
             DEVICE_VENDOR := Gemtek
