@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: OpenWRT-fanboy/OpenW1700k
-          ref: offload
+          ref: 58ce33da8580d763dcf44fd4a032376a845d9785
 
       - name: Setup build deps
         run: |
