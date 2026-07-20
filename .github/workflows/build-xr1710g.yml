@@ -273,6 +273,7 @@ jobs:
       - name: Configure firmware
         run: |
           cat > .config << 'EOF'
+          CONFIG_TARGET_airoha=y
           CONFIG_TARGET_airoha_an7581=y
           CONFIG_TARGET_airoha_an7581_DEVICE_econet_xr1710g-ubi=y
           CONFIG_DEVEL=y
@@ -297,6 +298,17 @@ jobs:
           CONFIG_DROPBEAR_2242=n
           EOF
           make defconfig
+
+      - name: Validate target selection
+        run: |
+          grep -q 'CONFIG_TARGET_airoha_an7581_DEVICE_econet_xr1710g-ubi=y' .config || {
+            echo "=== .config TARGET lines ==="
+            grep "^CONFIG_TARGET_" .config || true
+            echo "FATAL: Target econet_xr1710g-ubi not selected!"
+            exit 1
+          }
+          echo "Target econet_xr1710g-ubi confirmed"
+
 
       - name: Show build config
         run: grep -E "^CONFIG_" .config | sort
