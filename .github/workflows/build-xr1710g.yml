@@ -89,8 +89,6 @@ jobs:
             $YYH_RAW/921-net-airoha-npu-fix-firmware-loading-issue.patch
           curl -sSL -o target/linux/airoha/patches-6.18/995-04-net-airoha-classify-external-lan-ports-from-DT.patch \
             $YYH_RAW/922-net-airoha-classify-external-lan-ports-from-DT.patch
-          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ \
-            $YYH_RAW/9990-net-airoha-bind-WLAN-bound-flows-on-PPE-driver-L2-cache-miss.patch
           curl -sSL -o target/linux/airoha/dts/an7581-xr1710g-ubi.dts \
             https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/dts/an7581-xr1710g-ubi.dts
 
