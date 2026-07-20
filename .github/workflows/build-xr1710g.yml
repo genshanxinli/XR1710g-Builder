@@ -114,7 +114,8 @@ jobs:
                   apk-mbedtls ethtool-full fitblk \
                   kmod-i2c-an7581 kmod-hwmon-nct7802 \
                   kmod-mt7996-firmware kmod-phy-realtek rtl826x-firmware \
-                  kmod-nf-flow-bridge \
+                  kmod-nf-flow-bridge kmod-nft-offload kmod-nft-fullcone \
+                  kmod-nf-flowoffload kmod-nf-flowoffload4 kmod-nf-flowoffload6 \
                   luci \
                   luci-app-firewall luci-app-mlo \
                   luci-app-package-manager \
@@ -274,7 +275,6 @@ jobs:
           cat > .config << 'EOF'
           CONFIG_TARGET_airoha_an7581=y
           CONFIG_TARGET_airoha_an7581_DEVICE_econet_xr1710g-ubi=y
-          CONFIG_ALL_KMODS=y
           CONFIG_DEVEL=y
           CONFIG_CCACHE=y
           CONFIG_KERNEL_DEVMEM=y
