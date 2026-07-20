@@ -181,7 +181,8 @@ jobs:
           git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
           git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
           git clone --depth 1 https://github.com/linkease/istore.git package/istore
-          git clone --depth 1 https://github.com/linkease/luci-app-store.git package/luci-app-store
+          # luci-app-store is inside istore repo at luci/luci-app-store
+          ln -sf ../istore/luci/luci-app-store package/luci-app-store
 
           # Gate smartdns webui download behind CONFIG_PACKAGE_smartdns-ui guard
           sed -i 's/\$(eval \$(call Download,smartdns-webui))/ifdef CONFIG_PACKAGE_smartdns-ui\n\$(eval \$(call Download,smartdns-webui))\nendif/' package/smartdns/Makefile
