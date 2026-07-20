@@ -329,6 +329,7 @@ jobs:
           cp bin/targets/airoha/an7581/config.buildinfo release/ 2>/dev/null || true
           cp build.log release/ 2>/dev/null || true
           sha256sum release/*.itb > release/sha256sums.txt 2>/dev/null || echo "No .itb found" > release/sha256sums.txt
+          ls release/*sysupgrade.itb 1>/dev/null 2>&1 || { echo "FATAL: no .itb produced"; exit 1; }
 
       - name: Upload firmware
         if: always()
