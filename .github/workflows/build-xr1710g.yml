@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: OpenWRT-fanboy/OpenW1700k
-          ref: 58ce33da8580d763dcf44fd4a032376a845d9785
+          ref: offload
 
       - name: Setup build deps
         run: |
@@ -81,11 +81,16 @@ jobs:
         run: |
           set -ex
           YYH_RAW="https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/patches-6.18"
-          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/620-net-pcs-airoha-fix-USXGMII-rate-adaptation-on-speed.patch
-          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/621-net-pcs-airoha-AN7581-add-global-digital-reset-for.patch
-          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/921-net-airoha-npu-fix-firmware-loading-issue.patch
-          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/922-net-airoha-classify-external-lan-ports-from-DT.patch
-          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/9990-net-airoha-bind-WLAN-bound-flows-on-PPE-driver-L2-cache-miss.patch
+          curl -sSL -o target/linux/airoha/patches-6.18/995-01-net-pcs-airoha-fix-USXGMII-rate-adaptation-on-speed.patch \
+            $YYH_RAW/620-net-pcs-airoha-fix-USXGMII-rate-adaptation-on-speed.patch
+          curl -sSL -o target/linux/airoha/patches-6.18/995-02-net-pcs-airoha-AN7581-add-global-digital-reset-for.patch \
+            $YYH_RAW/621-net-pcs-airoha-AN7581-add-global-digital-reset-for.patch
+          curl -sSL -o target/linux/airoha/patches-6.18/995-03-net-airoha-npu-fix-firmware-loading-issue.patch \
+            $YYH_RAW/921-net-airoha-npu-fix-firmware-loading-issue.patch
+          curl -sSL -o target/linux/airoha/patches-6.18/995-04-net-airoha-classify-external-lan-ports-from-DT.patch \
+            $YYH_RAW/922-net-airoha-classify-external-lan-ports-from-DT.patch
+          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ \
+            $YYH_RAW/9990-net-airoha-bind-WLAN-bound-flows-on-PPE-driver-L2-cache-miss.patch
           curl -sSL -o target/linux/airoha/dts/an7581-xr1710g-ubi.dts \
             https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/dts/an7581-xr1710g-ubi.dts
 
