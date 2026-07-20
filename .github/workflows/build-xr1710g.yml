@@ -10,12 +10,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout ubi2-oc base
+      - name: Checkout offload base
         uses: actions/checkout@v4
         with:
           repository: OpenWRT-fanboy/OpenW1700k
-          ref: ubi2-oc
-          fetch-depth: 0
+          ref: offload
 
       - name: Setup build deps
         run: |
@@ -25,44 +24,81 @@ jobs:
             python3 python3-setuptools rsync swig unzip \
             zlib1g-dev file wget cpio bc ccache libelf-dev quilt
 
-      - name: Apply XR1710G modifications
+      - name: Apply overclock (+200MHz) and performance governor
         run: |
           set -ex
-          # --- 1. Replace ubi2-oc bridge offload with offload branch version ---
-          echo "--- Dropping ubi2-oc 675 patches ---"
-          rm -f target/linux/generic/pending-6.18/675-*.patch
-          echo "--- Installing offload 675-01~06 (PR#24038 bridge offload) ---"
-          OFFLOAD_RAW="https://raw.githubusercontent.com/OpenWRT-fanboy/OpenW1700k/offload"
-          for patch in \
-            675-01-net-forward-path-exports-and-bridge-helper.patch \
-            675-02-net-bridge-forward-path-helpers-and-vlan-modes.patch \
-            675-03-nft_flow_offload-add-bridging-support.patch \
-            675-04-netfilter-nf_flow_table-add-bridge-flowtable-type.patch \
-            675-05-netfilter-bridge-Add-conntrack-double-vlan-pppoe.patch \
-            675-06-net-bridge-br_fdb_update-notify-on-same-port-reactivation.patch; do
-            curl -sfSL -o "target/linux/generic/pending-6.18/$patch" \
-              "$OFFLOAD_RAW/target/linux/generic/pending-6.18/$patch"
-            echo "  Downloaded $patch ($(wc -c < "target/linux/generic/pending-6.18/$patch") bytes)"
-          done
-          # --- 2. YYH2913: XR1710G device tree ---
-          curl -sfSL -o target/linux/airoha/dts/an7581-xr1710g-ubi.dts \
-            https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/dts/an7581-xr1710g-ubi.dts
-          # --- 3. YYH2913: essential XR1710G patches ---
+
+          # --- 1. config-6.18: switch to performance governor ---
+          sed -i \
+            -e 's/CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y/# CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND is not set/' \
+            -e 's/# CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE is not set/CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y/' \
+            target/linux/airoha/an7581/config-6.18
+
+          # --- 2. an7581.dtsi: shift OPP table +200MHz ---
+          # Two-phase approach to avoid cascading collisions:
+          # Phase 1: Change all opp-hz VALUES using original labels as stable context ranges
+          # Phase 2: Change all OPP LABELS (no value collisions since values already changed)
+
+          # PHASE 1: opp-hz values (+200MHz each)
+          sed -i '/opp-500000000 {/,/};/s/<500000000>/<700000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-550000000 {/,/};/s/<550000000>/<750000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-600000000 {/,/};/s/<600000000>/<800000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-650000000 {/,/};/s/<650000000>/<850000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-7000000000 {/,/};/s/<700000000>/<900000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-7500000000 {/,/};/s/<750000000>/<950000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-8000000000 {/,/};/s/<800000000>/<1000000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-8500000000 {/,/};/s/<850000000>/<1050000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-9000000000 {/,/};/s/<900000000>/<1100000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-9500000000 {/,/};/s/<950000000>/<1150000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-10000000000 {/,/};/s/<1000000000>/<1200000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-10500000000 {/,/};/s/<1050000000>/<1250000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-11000000000 {/,/};/s/<1100000000>/<1300000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-11500000000 {/,/};/s/<1150000000>/<1350000000>/' target/linux/airoha/dts/an7581.dtsi
+          sed -i '/opp-12000000000 {/,/};/s/<1200000000>/<1400000000>/' target/linux/airoha/dts/an7581.dtsi
+
+          # PHASE 2: OPP labels (+200MHz each)
+          sed -i 's/opp-500000000 {/opp-700000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-550000000 {/opp-750000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-600000000 {/opp-800000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-650000000 {/opp-850000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-7000000000 {/opp-9000000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-7500000000 {/opp-9500000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-8000000000 {/opp-10000000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-8500000000 {/opp-10500000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-9000000000 {/opp-11000000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-9500000000 {/opp-11500000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-10000000000 {/opp-12000000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-10500000000 {/opp-12500000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-11000000000 {/opp-13000000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-11500000000 {/opp-13500000000 {/' target/linux/airoha/dts/an7581.dtsi
+          sed -i 's/opp-12000000000 {/opp-14000000000 {/' target/linux/airoha/dts/an7581.dtsi
+
+          # --- 3. 940-pmdomain patch: bump base freq 500→700 ---
+          sed -i 's/unsigned int freq_mhz = 500 + state \* 50;/unsigned int freq_mhz = 700 + state * 50;/' \
+            target/linux/airoha/patches-6.18/940-pmdomain-airoha-Add-Airoha-CPU-PM-Domain-support.patch
+
+          echo "Overclock +200MHz applied"
+
+      - name: Apply YYH2913 XR1710G patches and DTS
+        run: |
+          set -ex
           YYH_RAW="https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/patches-6.18"
-          for patch in \
-            620-net-pcs-airoha-fix-USXGMII-rate-adaptation-on-speed.patch \
-            621-net-pcs-airoha-AN7581-add-global-digital-reset-for.patch \
-            921-net-airoha-npu-fix-firmware-loading-issue.patch \
-            922-net-airoha-classify-external-lan-ports-from-DT.patch \
-            9990-net-airoha-bind-WLAN-bound-flows-on-PPE-driver-L2-cache-miss.patch; do
-            curl -sfSL -o "target/linux/airoha/patches-6.18/$patch" "$YYH_RAW/$patch"
-            echo "  Downloaded $patch ($(wc -c < "target/linux/airoha/patches-6.18/$patch") bytes)"
-          done
-          # --- 4. Kconfig has no default → oldconfig prompts (NEW) → fix by adding default m
-          sed -i '/depends on NF_TABLES_BRIDGE$/a +	default m' \
-            target/linux/generic/pending-6.18/675-04-netfilter-nf_flow_table-add-bridge-flowtable-type.patch
-          echo "Patched 675-04: NF_FLOW_TABLE_BRIDGE default m"
-          cat >> target/linux/airoha/image/an7581.mk << 'XR1710G'
+          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/620-net-pcs-airoha-fix-USXGMII-rate-adaptation-on-speed.patch
+          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/621-net-pcs-airoha-AN7581-add-global-digital-reset-for.patch
+          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/921-net-airoha-npu-fix-firmware-loading-issue.patch
+          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/922-net-airoha-classify-external-lan-ports-from-DT.patch
+          curl -sSLO --output-dir target/linux/airoha/patches-6.18/ $YYH_RAW/9990-net-airoha-bind-WLAN-bound-flows-on-PPE-driver-L2-cache-miss.patch
+          curl -sSL -o target/linux/airoha/dts/an7581-xr1710g-ubi.dts \
+            https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/dts/an7581-xr1710g-ubi.dts
+
+      - name: Enable bridge flow table kernel config
+        run: |
+          echo "CONFIG_NF_FLOW_TABLE_BRIDGE=m" >> target/linux/airoha/an7581/config-6.18
+
+      - name: Add XR1710G device definition
+        run: |
+          cat >> target/linux/airoha/image/an7581.mk << 'XR1710GDEV'
+
           define Device/gemtek_xr1710g-ubi
             DEVICE_VENDOR := Gemtek
             DEVICE_MODEL := XR1710G
@@ -73,12 +109,22 @@ jobs:
             DEVICE_DTS := an7581-xr1710g-ubi
             DEVICE_COMPAT_VERSION := 2.0
             DEVICE_COMPAT_MESSAGE := UBI v2 layout with BMT reserved area. \
-              Chainloader must be UBI 2.0 capable (YYH2913/http-uboot-xr1710g v2026.07+).
+              Chainloader must be UBI 2.0 capable (YYH2913/http-uboot v2026.07+).
             DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk kmod-i2c-an7581 \
               kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls rtl826x-firmware \
               kmod-phy-rtl8261ce kmod-nft-offload kmod-nft-fullcone kmod-crypto-hw-eip93 \
+              kmod-nf-flow-bridge \
+              luci-app-airoha-npu luci-app-airoha-flowsense luci-app-w1700k-fancontrol \
+              luci-app-mlo luci-app-netspeedtest luci-app-wifi7 \
+              luci-app-ttyd luci-app-firewall luci-app-upnp luci-app-wol luci-app-ddns \
+              luci-app-openclash luci-app-passwall luci-app-zerotier \
+              luci-app-adguardhome luci-app-smartdns \
+              luci-app-banip luci-app-udpxy luci-app-msd_lite luci-app-watchcat \
+              luci-theme-bootstrap luci-theme-argon luci-app-argon-config \
+              dnsmasq-full firewall4 nftables bash coreutils htop iperf3 tcpdump curl jq nano \
+              ethtool-full sing-box xray-core shadowsocks-rust-sslocal haproxy smartdns \
               luci-i18n-base-zh-cn luci-i18n-firewall-zh-cn \
-              dnsmasq-full firewall4 nftables
+              luci-app-store istore
             UBINIZE_OPTS := -E 5
             BLOCKSIZE := 128k
             PAGESIZE := 2048
@@ -93,42 +139,49 @@ jobs:
             SOC := an7581
           endef
           TARGET_DEVICES += gemtek_xr1710g-ubi
-          XR1710G
-          echo "XR1710G modifications applied"
+          XR1710GDEV
 
-      - name: Add third-party apps
+      - name: Setup custom files (uci-defaults for SSH port etc.)
         run: |
+          mkdir -p files/etc/uci-defaults
+          cat > files/etc/uci-defaults/99-ssh-port << 'SSHCONF'
+          #!/bin/sh
+          # Set SSH port to 2242 for non-STB users
+          uci set dropbear.@dropbear[0].Port=2242
+          uci commit dropbear
+          rm -f /etc/uci-defaults/99-ssh-port
+          exit 0
+          SSHCONF
+          chmod +x files/etc/uci-defaults/99-ssh-port
+
+          # irqbalance config for AN7581
+          mkdir -p files/etc/default
+          cat > files/etc/default/irqbalance << 'IRQCONF'
+          # AN7581-specific IRQ balancing
+          IRQBALANCE_BANNED_CPUS=
+          IRQBALANCE_ARGS="--hintpolicy=subset"
+          IRQCONF
+
+      - name: Add third-party feeds
+        run: |
+          set -ex
           cat >> feeds.conf.default << 'EOF'
           src-git openclash https://github.com/vernesong/OpenClash.git;master
           src-git passwall https://github.com/Openwrt-Passwall/openwrt-passwall.git;main
           src-git passwall_pkg https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main
-          src-git lucky https://github.com/gdy666/luci-app-lucky.git;main
-          src-git ddnsgo https://github.com/sirpdboy/luci-app-ddns-go.git;main
+          src-git istore https://github.com/linkease/istore.git;main
           EOF
+
           git clone --depth 1 https://github.com/pymumu/openwrt-smartdns.git package/smartdns
           git clone --depth 1 https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns
           git clone --depth 1 https://github.com/kongfl888/luci-app-adguardhome.git package/luci-app-adguardhome
           git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
           git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
+          git clone --depth 1 https://github.com/linkease/istore.git package/istore
+          git clone --depth 1 https://github.com/linkease/luci-app-store.git package/luci-app-store
+
+          # Gate smartdns webui download behind CONFIG_PACKAGE_smartdns-ui guard
           sed -i 's/\$(eval \$(call Download,smartdns-webui))/ifdef CONFIG_PACKAGE_smartdns-ui\n\$(eval \$(call Download,smartdns-webui))\nendif/' package/smartdns/Makefile
-
-      # ── Cache: DL_DIR (source tarballs) ──
-      - name: Cache DL_DIR
-        uses: actions/cache@v4
-        with:
-          path: dl
-          key: xr1700k-dl-${{ hashFiles('feeds.conf.default') }}
-          restore-keys: xr1700k-dl-
-
-      # ── Cache: cross toolchain (GCC/binutils/Rust host) ──
-      - name: Cache toolchain
-        uses: actions/cache@v4
-        with:
-          path: |
-            staging_dir/host
-            staging_dir/toolchain-*
-          key: xr1700k-tc-${{ hashFiles('toolchain/**', 'include/toolchain*.mk') }}
-          restore-keys: xr1700k-tc-
 
       - name: Update feeds
         run: |
@@ -141,6 +194,7 @@ jobs:
           CONFIG_TARGET_airoha_an7581=y
           CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi=y
           CONFIG_DEVEL=y
+          CONFIG_CCACHE=y
           CONFIG_KERNEL_DEVMEM=y
           CONFIG_BUSYBOX_CUSTOM=y
           CONFIG_BUSYBOX_CONFIG_DEVMEM=y
@@ -151,32 +205,25 @@ jobs:
           CONFIG_LIBCURL_MBEDTLS=y
           CONFIG_LIBCURL_PROXY=y
           CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-app-sqm=y
+          CONFIG_PACKAGE_sqm-scripts=y
+          CONFIG_PACKAGE_sqm-scripts-extra=y
+          CONFIG_PACKAGE_kmod-nft-offload=y
+          CONFIG_PACKAGE_kmod-nf-flowoffload=y
+          CONFIG_PACKAGE_kmod-nf-flowoffload4=y
+          CONFIG_PACKAGE_kmod-nf-flowoffload6=y
+          CONFIG_PACKAGE_irqbalance=y
+          CONFIG_DROPBEAR_2242=n
           EOF
           make defconfig
 
-
       - name: Show build config
-        run: make menuconfig_JSON 2>/dev/null || grep -E "^CONFIG_" .config | sort
+        run: grep -E "^CONFIG_" .config | sort
 
       - name: Build firmware
         run: |
           set -o pipefail
-          # -k = keep going: one package failure doesn't mask the rest
-          make -j$(nproc) -k V=s 2>&1 | tee build.log
-
-      - name: Check for errors
-        if: always()
-        run: |
-          ERRORS=$(grep -c "^ERROR:\|make\[.*\]: \*\*\* \[.*\] Error" build.log 2>/dev/null || true)
-          ITB_COUNT=$(ls bin/targets/airoha/an7581/*sysupgrade.itb 2>/dev/null | wc -l)
-          if [ "$ITB_COUNT" -gt 0 ]; then
-            echo "ITB found ($ITB_COUNT) — firmware built (may have non-fatal errors)"
-            ls -lh bin/targets/airoha/an7581/
-          else
-            echo "No ITB — build failed. Error count: $ERRORS"
-            grep "^ERROR:\|make\[.*\]: \*\*\* \[.*\] Error" build.log | head -20
-            exit 1
-          fi
+          make -j$(nproc) V=s 2>&1 | tee build.log
 
       - name: Prepare artifacts
         if: always()
