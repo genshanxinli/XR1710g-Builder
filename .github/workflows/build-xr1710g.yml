@@ -28,18 +28,16 @@ jobs:
         run: |
           set -ex
 
-          # --- 1. config-6.18: switch to performance governor ---
+          # --- config-6.18: switch to performance governor ---
           sed -i \
             -e 's/CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y/# CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND is not set/' \
             -e 's/# CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE is not set/CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y/' \
             target/linux/airoha/an7581/config-6.18
 
-          # --- 2. an7581.dtsi: shift OPP table +200MHz ---
-          # Two-phase approach to avoid cascading collisions:
-          # Phase 1: Change all opp-hz VALUES using original labels as stable context ranges
-          # Phase 2: Change all OPP LABELS (no value collisions since values already changed)
+          # --- an7581.dtsi: shift OPP table +200MHz ---
+          # Two-phase: values first (with label context), labels second (reverse order)
 
-          # PHASE 1: opp-hz values (+200MHz each)
+          # PHASE 1: opp-hz values
           sed -i '/opp-500000000 {/,/};/s/<500000000>/<700000000>/' target/linux/airoha/dts/an7581.dtsi
           sed -i '/opp-550000000 {/,/};/s/<550000000>/<750000000>/' target/linux/airoha/dts/an7581.dtsi
           sed -i '/opp-600000000 {/,/};/s/<600000000>/<800000000>/' target/linux/airoha/dts/an7581.dtsi
@@ -56,9 +54,7 @@ jobs:
           sed -i '/opp-11500000000 {/,/};/s/<1150000000>/<1350000000>/' target/linux/airoha/dts/an7581.dtsi
           sed -i '/opp-12000000000 {/,/};/s/<1200000000>/<1400000000>/' target/linux/airoha/dts/an7581.dtsi
 
-          # PHASE 2: OPP labels (+200MHz each) — REVERSE order to avoid cascading collisions
-          # (e.g. entry 7: opp-8000000000→opp-10000000000 would collide with original entry 11
-          #  unless entry 11 is already renamed → renaming from high-to-low avoids this.)
+          # PHASE 2: OPP labels (reverse order)
           sed -i 's/opp-12000000000 {/opp-14000000000 {/' target/linux/airoha/dts/an7581.dtsi
           sed -i 's/opp-11500000000 {/opp-13500000000 {/' target/linux/airoha/dts/an7581.dtsi
           sed -i 's/opp-11000000000 {/opp-13000000000 {/' target/linux/airoha/dts/an7581.dtsi
@@ -70,13 +66,12 @@ jobs:
           sed -i 's/opp-8000000000 {/opp-10000000000 {/' target/linux/airoha/dts/an7581.dtsi
           sed -i 's/opp-7500000000 {/opp-9500000000 {/' target/linux/airoha/dts/an7581.dtsi
           sed -i 's/opp-7000000000 {/opp-9000000000 {/' target/linux/airoha/dts/an7581.dtsi
-          # Entries 1-4 have 9-digit labels with no overlap with 10-digit ones above
           sed -i 's/opp-650000000 {/opp-850000000 {/' target/linux/airoha/dts/an7581.dtsi
           sed -i 's/opp-600000000 {/opp-800000000 {/' target/linux/airoha/dts/an7581.dtsi
           sed -i 's/opp-550000000 {/opp-750000000 {/' target/linux/airoha/dts/an7581.dtsi
           sed -i 's/opp-500000000 {/opp-700000000 {/' target/linux/airoha/dts/an7581.dtsi
 
-          # --- 3. 940-pmdomain patch: bump base freq 500→700 ---
+          # --- 940-pmdomain patch: bump base freq 500→700 ---
           sed -i 's/unsigned int freq_mhz = 500 + state \* 50;/unsigned int freq_mhz = 700 + state * 50;/' \
             target/linux/airoha/patches-6.18/940-pmdomain-airoha-Add-Airoha-CPU-PM-Domain-support.patch
 
@@ -98,36 +93,36 @@ jobs:
         run: |
           echo "CONFIG_NF_FLOW_TABLE_BRIDGE=m" >> target/linux/airoha/an7581/config-6.18
 
-      - name: Add XR1710G device definition
+      - name: Add XR1710G device definition (YYH2913 authoritative)
         run: |
           cat >> target/linux/airoha/image/an7581.mk << 'XR1710GDEV'
 
-          define Device/gemtek_xr1710g-ubi
-            DEVICE_VENDOR := Gemtek
+          define Device/econet_xr1710g-ubi
+            DEVICE_VENDOR := Econet
             DEVICE_MODEL := XR1710G
             DEVICE_VARIANT := UBI
-            DEVICE_ALT0_VENDOR := Brightspeed
-            DEVICE_ALT0_MODEL := XR1710G
-            DEVICE_ALT0_VARIANT := UBI
             DEVICE_DTS := an7581-xr1710g-ubi
             DEVICE_COMPAT_VERSION := 2.0
-            DEVICE_COMPAT_MESSAGE := UBI v2 layout with BMT reserved area. \
-              Chainloader must be UBI 2.0 capable (YYH2913/http-uboot v2026.07+).
-            DEVICE_PACKAGES := airoha-en7581-mt7996-npu-firmware fitblk kmod-i2c-an7581 \
-              kmod-hwmon-nct7802 kmod-mt7996-firmware wpad-mbedtls rtl826x-firmware \
-              kmod-phy-rtl8261ce kmod-nft-offload kmod-nft-fullcone kmod-crypto-hw-eip93 \
-              kmod-nf-flow-bridge \
-              luci-app-airoha-npu luci-app-airoha-flowsense luci-app-w1700k-fancontrol \
-              luci-app-mlo luci-app-netspeedtest luci-app-wifi7 \
-              luci-app-ttyd luci-app-firewall luci-app-upnp luci-app-wol luci-app-ddns \
-              luci-app-openclash luci-app-passwall luci-app-zerotier \
-              luci-app-adguardhome luci-app-smartdns \
-              luci-app-banip luci-app-udpxy luci-app-msd_lite luci-app-watchcat \
-              luci-theme-bootstrap luci-theme-argon luci-app-argon-config \
-              dnsmasq-full firewall4 nftables bash coreutils htop iperf3 tcpdump curl jq nano \
-              ethtool-full sing-box xray-core shadowsocks-rust-sslocal haproxy smartdns \
-              luci-i18n-base-zh-cn luci-i18n-firewall-zh-cn \
-              luci-app-store istore
+            DEVICE_COMPAT_MESSAGE := The XR1710G BMT/BBT boundary has changed. Install \
+                 an XR1710G chainloader/U-Boot using the new layout first, then boot \
+                 recovery/initramfs and fully recreate UBI. A normal sysupgrade that \
+                 preserves configuration is unsafe.
+            DEVICE_PACKAGES := -airoha-en7581-npu-firmware \
+                  -kmod-input-gpio-keys-polled -kmod-leds-pwm \
+                  -kmod-pwm-airoha \
+                  airoha-en7581-mt7996-npu-firmware \
+                  apk-mbedtls ethtool-full fitblk \
+                  kmod-i2c-an7581 kmod-hwmon-nct7802 \
+                  kmod-mt7996-firmware kmod-phy-realtek rtl826x-firmware \
+                  kmod-nf-flow-bridge \
+                  luci \
+                  luci-app-firewall luci-app-mlo \
+                  luci-app-package-manager \
+                  luci-i18n-mlo-zh-cn \
+                  luci-mod-admin-full \
+                  luci-proto-ppp luci-theme-bootstrap \
+                  rpcd-mod-rrdns uhttpd uhttpd-mod-ubus \
+                  wpad-basic-mbedtls
             UBINIZE_OPTS := -E 5
             BLOCKSIZE := 128k
             PAGESIZE := 2048
@@ -141,53 +136,135 @@ jobs:
             IMAGE/sysupgrade.itb := append-kernel | fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | append-metadata
             SOC := an7581
           endef
-          TARGET_DEVICES += gemtek_xr1710g-ubi
+          TARGET_DEVICES += econet_xr1710g-ubi
           XR1710GDEV
 
-      - name: Setup custom files (uci-defaults for SSH port etc.)
+      - name: Add YYH2913 uci-defaults (flow offload, WiFi tuning, XR1710G WiFi)
         run: |
           mkdir -p files/etc/uci-defaults
+
+          # 14-airoha-hw-flow-offload — enable hw flow offload at boot
+          cat > files/etc/uci-defaults/14-airoha-hw-flow-offload << 'EOF'
+          #!/bin/sh
+          . /lib/functions.sh
+          config_load firewall
+          config_get flow_offloading defaults flow_offloading
+          config_get flow_offloading_hw defaults flow_offloading_hw
+          [ -n "$flow_offloading" ] || uci set firewall.@defaults[0].flow_offloading='1'
+          [ -n "$flow_offloading_hw" ] || uci set firewall.@defaults[0].flow_offloading_hw='1'
+          uci commit firewall
+          exit 0
+          EOF
+
+          # 16-airoha-wifi-tuning — U-APSD off, disassoc_low_ack off for W1700K/XR1710G
+          cat > files/etc/uci-defaults/16-airoha-wifi-tuning << 'EOF'
+          #!/bin/sh
+          . /lib/functions.sh
+          . /lib/functions/system.sh
+          case "$(board_name)" in
+            gemtek,w1700k-ubi|econet,xr1710g-ubi) ;;
+            *) exit 0 ;;
+          esac
+          config_load wireless
+          changed=0
+          tune_wifi_iface() {
+            local cfg="$1" mode
+            config_get mode "$cfg" mode
+            [ "$mode" = "ap" ] || return 0
+            if ! uci -q get wireless."$cfg".uapsd >/dev/null; then
+              uci set wireless."$cfg".uapsd='0'; changed=1
+            fi
+            if ! uci -q get wireless."$cfg".disassoc_low_ack >/dev/null; then
+              uci set wireless."$cfg".disassoc_low_ack='0'; changed=1
+            fi
+          }
+          config_foreach tune_wifi_iface wifi-iface
+          [ "$changed" -eq 1 ] && uci commit wireless
+          exit 0
+          EOF
+
+          # 17-xr1710g-wifi-defaults — XR1710G band-specific defaults
+          cat > files/etc/uci-defaults/17-xr1710g-wifi-defaults << 'EOF'
+          #!/bin/sh
+          . /lib/functions.sh
+          . /lib/functions/system.sh
+          [ "$(board_name)" = "econet,xr1710g-ubi" ] || exit 0
+          config_load wireless
+          changed=0
+          set_xr1710g_radio_defaults() {
+            local cfg="$1" band
+            config_get band "$cfg" band
+            case "$band" in
+              2g) uci set wireless."$cfg".country='US' ;;
+              5g)
+                uci set wireless."$cfg".country='US'
+                uci set wireless."$cfg".channel='36'
+                uci set wireless."$cfg".htmode='EHT160'
+                ;;
+              6g)
+                uci set wireless."$cfg".country='US'
+                uci set wireless."$cfg".channel='37'
+                uci set wireless."$cfg".htmode='EHT320'
+                ;;
+              *) return 0 ;;
+            esac
+            changed=1
+          }
+          config_foreach set_xr1710g_radio_defaults wifi-device
+          [ "$changed" -eq 1 ] && uci commit wireless
+          exit 0
+          EOF
+
+          # SSH port 2242
           cat > files/etc/uci-defaults/99-ssh-port << 'SSHCONF'
           #!/bin/sh
-          # Set SSH port to 2242 for non-STB users
           uci set dropbear.@dropbear[0].Port=2242
           uci commit dropbear
           rm -f /etc/uci-defaults/99-ssh-port
           exit 0
           SSHCONF
-          chmod +x files/etc/uci-defaults/99-ssh-port
 
-          # irqbalance config for AN7581
+          chmod +x files/etc/uci-defaults/*
+
+      - name: Add YYH2913 hotplug scripts
+        run: |
+          mkdir -p files/etc/hotplug.d/net
+
+          # 50-flow-offload-wifi — trigger flow offload on WiFi ifup
+          cat > files/etc/hotplug.d/net/50-flow-offload-wifi << 'EOF'
+          #!/bin/sh
+          # Reinstall nft flowtable rules after a wifi iface comes up
+          [ "$ACTION" = "ifup" ] || exit 0
+          case "$INTERFACE" in
+            wl*|phy*|radio*) ;;
+            *) exit 0 ;;
+          esac
+          sleep 2
+          /etc/init.d/firewall reload 2>/dev/null
+          EOF
+
+          # 50-nf-bridge-call — trigger bridge flowtable reinstall
+          cat > files/etc/hotplug.d/net/50-nf-bridge-call << 'EOF'
+          #!/bin/sh
+          [ "$ACTION" = "ifup" ] || exit 0
+          case "$INTERFACE" in
+            br-*) ;;
+            *) exit 0 ;;
+          esac
+          /etc/init.d/firewall reload 2>/dev/null
+          EOF
+
+          chmod +x files/etc/hotplug.d/net/*
+
+      - name: irqbalance config
+        run: |
           mkdir -p files/etc/default
           cat > files/etc/default/irqbalance << 'IRQCONF'
-          # AN7581-specific IRQ balancing
           IRQBALANCE_BANNED_CPUS=
           IRQBALANCE_ARGS="--hintpolicy=subset"
           IRQCONF
 
-      - name: Add third-party feeds
-        run: |
-          set -ex
-          cat >> feeds.conf.default << 'EOF'
-          src-git openclash https://github.com/vernesong/OpenClash.git;master
-          src-git passwall https://github.com/Openwrt-Passwall/openwrt-passwall.git;main
-          src-git passwall_pkg https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main
-          src-git istore https://github.com/linkease/istore.git;main
-          EOF
-
-          git clone --depth 1 https://github.com/pymumu/openwrt-smartdns.git package/smartdns
-          git clone --depth 1 https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns
-          git clone --depth 1 https://github.com/kongfl888/luci-app-adguardhome.git package/luci-app-adguardhome
-          git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
-          git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git package/luci-app-argon-config
-          git clone --depth 1 https://github.com/linkease/istore.git package/istore
-          # luci-app-store is inside istore repo at luci/luci-app-store
-          ln -sf ../istore/luci/luci-app-store package/luci-app-store
-
-          # Gate smartdns webui download behind CONFIG_PACKAGE_smartdns-ui guard
-          sed -i 's/\$(eval \$(call Download,smartdns-webui))/ifdef CONFIG_PACKAGE_smartdns-ui\n\$(eval \$(call Download,smartdns-webui))\nendif/' package/smartdns/Makefile
-
-      - name: Update feeds
+      - name: Update feeds (no third-party feeds — official only)
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
@@ -196,27 +273,27 @@ jobs:
         run: |
           cat > .config << 'EOF'
           CONFIG_TARGET_airoha_an7581=y
-          CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xr1710g-ubi=y
+          CONFIG_TARGET_airoha_an7581_DEVICE_econet_xr1710g-ubi=y
+          CONFIG_ALL_KMODS=y
           CONFIG_DEVEL=y
           CONFIG_CCACHE=y
           CONFIG_KERNEL_DEVMEM=y
           CONFIG_BUSYBOX_CUSTOM=y
           CONFIG_BUSYBOX_CONFIG_DEVMEM=y
-          CONFIG_LIBCURL_COOKIES=y
-          CONFIG_LIBCURL_FILE=y
-          CONFIG_LIBCURL_HTTP=y
-          CONFIG_LIBCURL_HTTP2=y
-          CONFIG_LIBCURL_MBEDTLS=y
-          CONFIG_LIBCURL_PROXY=y
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-app-sqm=y
           CONFIG_PACKAGE_sqm-scripts=y
           CONFIG_PACKAGE_sqm-scripts-extra=y
-          CONFIG_PACKAGE_kmod-nft-offload=y
-          CONFIG_PACKAGE_kmod-nf-flowoffload=y
-          CONFIG_PACKAGE_kmod-nf-flowoffload4=y
-          CONFIG_PACKAGE_kmod-nf-flowoffload6=y
           CONFIG_PACKAGE_irqbalance=y
+          CONFIG_PACKAGE_luci-app-irqbalance=y
+          CONFIG_PACKAGE_luci-app-airoha-npu=y
+          CONFIG_PACKAGE_luci-app-airoha-flowsense=y
+          CONFIG_PACKAGE_luci-app-w1700k-fancontrol=y
+          CONFIG_PACKAGE_luci-app-netspeedtest=y
+          CONFIG_PACKAGE_luci-app-wifi7=y
+          CONFIG_PACKAGE_luci-app-ttyd=y
+          CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
           CONFIG_DROPBEAR_2242=n
           EOF
           make defconfig
