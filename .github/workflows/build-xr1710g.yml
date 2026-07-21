@@ -105,6 +105,9 @@ jobs:
             $YYH_RAW/922-net-airoha-classify-external-lan-ports-from-DT.patch
           curl -sSL -o target/linux/airoha/dts/an7581-xr1710g-ubi.dts \
             https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/target/linux/airoha/dts/an7581-xr1710g-ubi.dts
+          # airoha.mk: NPU firmware package definitions (missing from offload)
+          curl -sSL -o package/firmware/linux-firmware/airoha.mk \
+            https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/package/firmware/linux-firmware/airoha.mk
 
       - name: Enable bridge flow table kernel config
         run: |
