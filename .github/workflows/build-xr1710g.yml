@@ -30,13 +30,23 @@ jobs:
           path: dl
           key: dl-${{ github.run_id }}
           restore-keys: dl-
+      - name: Cache toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            staging_dir/toolchain-*
+            build_dir/toolchain-*
+          key: tc-${{ hashFiles('toolchain/**', 'include/toolchain*.mk') }}
+          restore-keys: tc-
 
       - name: Cache ccache
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-${{ hashFiles('target/linux/airoha/an7581/config-6.18') }}
-          restore-keys: ccache-
+          key: ccache-${{ hashFiles('target/linux/airoha/an7581/config-6.18') }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ hashFiles('target/linux/airoha/an7581/config-6.18') }}-
+            ccache-
 
       - name: Apply overclock (+200MHz) and performance governor
         run: |
