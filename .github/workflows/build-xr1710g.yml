@@ -35,7 +35,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dl
-          key: dl-${{ hashFiles('builder-configs/configs/lean.config') }}
+          key: dl-${{ hashFiles('feeds.conf.default', 'builder-configs/configs/lean.config') }}
           restore-keys: dl-
 
       - name: Cache ccache (shared across profiles)
@@ -327,7 +327,7 @@ jobs:
           key: tc-${{ hashFiles('toolchain/**', 'include/toolchain*.mk', 'target/linux/airoha/Makefile') }}
 
       - name: Build toolchain only
-        run: make -j$(nproc) toolchain/compile 2>&1 | tail -20
+        run: make -j$(nproc) toolchain/compile 2>&1
 
       - name: Report ccache hit rate
         run: ccache -s 2>&1 | tail -10
@@ -365,7 +365,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dl
-          key: dl-${{ hashFiles('builder-configs/configs/lean.config') }}
+          key: dl-${{ hashFiles('feeds.conf.default', 'builder-configs/configs/lean.config') }}
           restore-keys: dl-
 
       - name: Restore ccache (shared across profiles)
