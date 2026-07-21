@@ -1,4 +1,4 @@
-name: Build XR1710G Firmware
+name: Build XR1710G Firmware (Full)
 
 on:
   workflow_dispatch:
@@ -302,7 +302,26 @@ jobs:
           IRQBALANCE_ARGS="--hintpolicy=subset"
           IRQCONF
 
-      - name: Update feeds (no third-party feeds — official only)
+      - name: Add third-party feeds
+        run: |
+          set -ex
+          cat >> feeds.conf.default << 'EOF'
+          src-git openclash https://github.com/vernesong/OpenClash.git;master
+          src-git passwall https://github.com/Openwrt-Passwall/openwrt-passwall.git;main
+          src-git passwall_pkg https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main
+          src-git lucky https://github.com/gdy666/luci-app-lucky.git;main
+          src-git istore https://github.com/linkease/istore.git;main
+          EOF
+
+          git clone --depth 1 https://github.com/pymumu/openwrt-smartdns.git package/smartdns
+          git clone --depth 1 https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns
+          git clone --depth 1 https://github.com/kongfl888/luci-app-adguardhome.git package/luci-app-adguardhome
+          git clone --depth 1 https://github.com/linkease/luci-app-store.git package/luci-app-store
+
+          # Gate smartdns webui download behind CONFIG_PACKAGE_smartdns-ui guard
+          sed -i 's/\$(eval \$(call Download,smartdns-webui))/ifdef CONFIG_PACKAGE_smartdns-ui\n\$(eval \$(call Download,smartdns-webui))\nendif/' package/smartdns/Makefile
+
+      - name: Update feeds
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
@@ -332,6 +351,35 @@ jobs:
           CONFIG_PACKAGE_luci-app-ttyd=y
           CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
           CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+          # --- Full apps additions ---
+          CONFIG_PACKAGE_luci-app-upnp=y
+          CONFIG_PACKAGE_luci-app-wol=y
+          CONFIG_PACKAGE_luci-app-ddns=y
+          CONFIG_PACKAGE_luci-app-banip=y
+          CONFIG_PACKAGE_luci-app-watchcat=y
+          CONFIG_PACKAGE_luci-app-filemanager=y
+          CONFIG_PACKAGE_luci-app-udpxy=y
+          CONFIG_PACKAGE_luci-app-msd_lite=y
+          CONFIG_PACKAGE_luci-app-openclash=y
+          CONFIG_PACKAGE_luci-app-passwall=y
+          CONFIG_PACKAGE_luci-app-zerotier=y
+          CONFIG_PACKAGE_luci-app-smartdns=y
+          CONFIG_PACKAGE_smartdns=y
+          CONFIG_PACKAGE_luci-app-adguardhome=y
+          CONFIG_PACKAGE_luci-app-lucky=y
+          CONFIG_PACKAGE_luci-app-store=y
+          CONFIG_PACKAGE_istore=y
+          CONFIG_PACKAGE_sing-box=y
+          CONFIG_PACKAGE_xray-core=y
+          CONFIG_PACKAGE_shadowsocks-rust-sslocal=y
+          CONFIG_PACKAGE_haproxy=y
+          CONFIG_PACKAGE_bash=y
+          CONFIG_PACKAGE_coreutils=y
+          CONFIG_PACKAGE_htop=y
+          CONFIG_PACKAGE_iperf3=y
+          CONFIG_PACKAGE_tcpdump=y
+          CONFIG_PACKAGE_jq=y
+          CONFIG_PACKAGE_nano=y
           CONFIG_DROPBEAR_2242=n
           EOF
           make defconfig
@@ -369,15 +417,15 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: XR1710G-ImmortalWrt-offload
+          name: XR1710G-ImmortalWrt-offload-full
           path: release/
           retention-days: 30
 
       - name: Create Release
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && github.ref == 'refs/heads/full-apps'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: xr1710g-${{ github.run_number }}
-          name: "XR1710G Build ${{ github.run_number }}"
+          tag_name: xr1710g-full-${{ github.run_number }}
+          name: "XR1710G Full Build ${{ github.run_number }}"
           files: release/*
           prerelease: false
