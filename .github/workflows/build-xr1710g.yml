@@ -157,6 +157,20 @@ jobs:
           TARGET_DEVICES += econet_xr1710g-ubi
           XR1710GDEV
 
+
+      - name: Patch platform.sh for econet,xr1710g-ubi upgrade
+        run: |
+          awk '
+          /^\t\t\*\)/ && !done {
+            print "\t\teconet,xr1710g-ubi)"
+            print "\t\t\tfit_do_upgrade \"$1\""
+            print "\t\t\t;;"
+            done=1
+          }
+          { print }
+          ' target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh > /tmp/platform.sh
+          mv /tmp/platform.sh target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh
+          echo "platform.sh patched for econet,xr1710g-ubi"
       - name: Add YYH2913 uci-defaults (flow offload, WiFi tuning, XR1710G WiFi)
         run: |
           mkdir -p files/etc/uci-defaults
