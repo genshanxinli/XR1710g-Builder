@@ -305,6 +305,9 @@ jobs:
       - name: Add third-party feeds
         run: |
           set -ex
+          # Disable credential helper from actions/checkout for anonymous clones
+          git config --global credential.helper ""
+
           cat >> feeds.conf.default << 'EOF'
           src-git openclash https://github.com/vernesong/OpenClash.git;master
           src-git passwall https://github.com/Openwrt-Passwall/openwrt-passwall.git;main
@@ -359,7 +362,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-watchcat=y
           CONFIG_PACKAGE_luci-app-filemanager=y
           CONFIG_PACKAGE_luci-app-udpxy=y
-          CONFIG_PACKAGE_luci-app-msd_lite=y
           CONFIG_PACKAGE_luci-app-openclash=y
           CONFIG_PACKAGE_luci-app-passwall=y
           CONFIG_PACKAGE_luci-app-zerotier=y
