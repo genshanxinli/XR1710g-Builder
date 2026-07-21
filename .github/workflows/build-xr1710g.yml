@@ -343,6 +343,8 @@ jobs:
       - name: Add third-party feeds
         run: |
           set -ex
+          # Unset actions/checkout extraheader that blocks anonymous third-party clones
+          git config --global --unset http.https://github.com/.extraheader || true
           cat >> feeds.conf.default << 'EOF'
           src-git openclash https://github.com/vernesong/OpenClash.git;master
           EOF
@@ -384,7 +386,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-banip=y
           CONFIG_PACKAGE_luci-app-watchcat=y
           CONFIG_PACKAGE_luci-app-udpxy=y
-          CONFIG_PACKAGE_luci-app-msd_lite=y
           CONFIG_PACKAGE_luci-app-openclash=y
           CONFIG_PACKAGE_luci-app-smartdns=y
           CONFIG_PACKAGE_smartdns=y
