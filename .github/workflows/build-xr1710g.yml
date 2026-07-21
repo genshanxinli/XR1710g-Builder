@@ -305,8 +305,8 @@ jobs:
       - name: Add third-party feeds
         run: |
           set -ex
-          # Disable credential helper from actions/checkout for anonymous clones
-          git config --global credential.helper ""
+          # Unset actions/checkout extraheader that blocks anonymous third-party clones
+          git config --global --unset http.https://github.com/.extraheader || true
 
           cat >> feeds.conf.default << 'EOF'
           src-git openclash https://github.com/vernesong/OpenClash.git;master
