@@ -1,0 +1,3 @@
+# Lite third-party feeds
+# Only OpenClash — minimal supplementation
+src-git openclash https://github.com/vernesong/OpenClash.git;master

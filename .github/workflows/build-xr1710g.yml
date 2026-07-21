@@ -1,4 +1,4 @@
-name: Build XR1710G Firmware
+name: Build XR1710G Firmware (Matrix)
 
 on:
   workflow_dispatch:
@@ -8,6 +8,9 @@ permissions:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        profile: [lean, lite, full]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout offload base
@@ -15,6 +18,12 @@ jobs:
         with:
           repository: OpenWRT-fanboy/OpenW1700k
           ref: offload
+          persist-credentials: false
+      - name: Checkout builder configs (XR1710g-Builder)
+        uses: actions/checkout@v4
+        with:
+          path: builder-configs
+          persist-credentials: false
 
       - name: Setup build deps
         run: |
@@ -28,24 +37,29 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dl
-          key: dl-${{ github.run_id }}
-          restore-keys: dl-
+          key: dl-${{ matrix.profile }}-${{ github.run_id }}
+          restore-keys: |
+            dl-${{ matrix.profile }}-
+            dl-
       - name: Cache toolchain
         uses: actions/cache@v4
         with:
           path: |
             staging_dir/toolchain-*
             build_dir/toolchain-*
-          key: tc-${{ hashFiles('toolchain/**', 'include/toolchain*.mk') }}
-          restore-keys: tc-
+          key: tc-${{ matrix.profile }}-${{ hashFiles('toolchain/**', 'include/toolchain*.mk') }}
+          restore-keys: |
+            tc-${{ matrix.profile }}-
+            tc-
 
       - name: Cache ccache
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-${{ hashFiles('target/linux/airoha/an7581/config-6.18') }}-${{ github.run_id }}
+          key: ccache-${{ matrix.profile }}-${{ hashFiles('target/linux/airoha/an7581/config-6.18') }}-${{ github.run_id }}
           restore-keys: |
-            ccache-${{ hashFiles('target/linux/airoha/an7581/config-6.18') }}-
+            ccache-${{ matrix.profile }}-${{ hashFiles('target/linux/airoha/an7581/config-6.18') }}-
+            ccache-${{ matrix.profile }}-
             ccache-
 
       - name: Apply overclock (+200MHz) and performance governor
@@ -95,7 +109,7 @@ jobs:
           sed -i 's/opp-550000000 {/opp-750000000 {/' target/linux/airoha/dts/an7581.dtsi
           sed -i 's/opp-500000000 {/opp-700000000 {/' target/linux/airoha/dts/an7581.dtsi
 
-          # --- 940-pmdomain patch: bump base freq 500→700 ---
+          # --- 940-pmdomain patch: bump base freq 500->700 ---
           sed -i 's/unsigned int freq_mhz = 500 + state \* 50;/unsigned int freq_mhz = 700 + state * 50;/' \
             target/linux/airoha/patches-6.18/940-pmdomain-airoha-Add-Airoha-CPU-PM-Domain-support.patch
 
@@ -170,7 +184,6 @@ jobs:
           TARGET_DEVICES += econet_xr1710g-ubi
           XR1710GDEV
 
-
       - name: Patch platform.sh for econet,xr1710g-ubi upgrade
         run: |
           awk '
@@ -190,11 +203,12 @@ jobs:
             exit 1
           }
           echo "platform.sh verified: econet,xr1710g-ubi case present"
+
       - name: Add YYH2913 uci-defaults (flow offload, WiFi tuning, XR1710G WiFi)
         run: |
           mkdir -p files/etc/uci-defaults
 
-          # 14-airoha-hw-flow-offload — enable hw flow offload at boot
+          # 14-airoha-hw-flow-offload -- enable hw flow offload at boot
           cat > files/etc/uci-defaults/14-airoha-hw-flow-offload << 'EOF'
           #!/bin/sh
           . /lib/functions.sh
@@ -207,7 +221,7 @@ jobs:
           exit 0
           EOF
 
-          # 16-airoha-wifi-tuning — U-APSD off, disassoc_low_ack off for W1700K/XR1710G
+          # 16-airoha-wifi-tuning -- U-APSD off, disassoc_low_ack off for W1700K/XR1710G
           cat > files/etc/uci-defaults/16-airoha-wifi-tuning << 'EOF'
           #!/bin/sh
           . /lib/functions.sh
@@ -234,7 +248,7 @@ jobs:
           exit 0
           EOF
 
-          # 17-xr1710g-wifi-defaults — XR1710G band-specific defaults
+          # 17-xr1710g-wifi-defaults -- XR1710G band-specific defaults
           cat > files/etc/uci-defaults/17-xr1710g-wifi-defaults << 'EOF'
           #!/bin/sh
           . /lib/functions.sh
@@ -281,7 +295,7 @@ jobs:
         run: |
           mkdir -p files/etc/hotplug.d/net
 
-          # 50-flow-offload-wifi — trigger flow offload on WiFi ifup
+          # 50-flow-offload-wifi -- trigger flow offload on WiFi ifup
           cat > files/etc/hotplug.d/net/50-flow-offload-wifi << 'EOF'
           #!/bin/sh
           # Reinstall nft flowtable rules after a wifi iface comes up
@@ -294,7 +308,7 @@ jobs:
           /etc/init.d/firewall reload 2>/dev/null
           EOF
 
-          # 50-nf-bridge-call — trigger bridge flowtable reinstall
+          # 50-nf-bridge-call -- trigger bridge flowtable reinstall
           cat > files/etc/hotplug.d/net/50-nf-bridge-call << 'EOF'
           #!/bin/sh
           [ "$ACTION" = "ifup" ] || exit 0
@@ -311,10 +325,11 @@ jobs:
         run: |
           mkdir -p files/etc/default
           cat > files/etc/default/irqbalance << 'IRQCONF'
+          # irqbalance config for Airoha AN7581 (6×Cortex-A55)
+          # Banned CPUs: none (all 6 cores available)
           IRQBALANCE_BANNED_CPUS=
           IRQBALANCE_ARGS="--hintpolicy=subset"
           IRQCONF
-
 
       - name: Patch board.d scripts for XR1710G
         run: |
@@ -350,38 +365,26 @@ jobs:
             exit 1
           }
           echo "05_compat-version: XR1710G compat version set"
-      - name: Update feeds (no third-party feeds — official only)
+
+      - name: Add third-party feeds (${{ matrix.profile }})
+        if: matrix.profile != 'lean'
+        run: |
+          set -ex
+          cat $GITHUB_WORKSPACE/builder-configs/configs/feeds/${{ matrix.profile }}.feeds >> feeds.conf.default
+          # Profile-specific package clones (git repos, not in src-git feeds)
+          if [ "${{ matrix.profile }}" = "full" ]; then
+            git clone --depth 1 https://github.com/linkease/istore.git package/istore
+            git clone --depth 1 https://github.com/kongfl888/luci-app-adguardhome.git package/luci-app-adguardhome
+          fi
+
+      - name: Update feeds
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
       - name: Configure firmware
         run: |
-          cat > .config << 'EOF'
-          CONFIG_TARGET_airoha=y
-          CONFIG_TARGET_airoha_an7581=y
-          CONFIG_TARGET_airoha_an7581_DEVICE_econet_xr1710g-ubi=y
-          CONFIG_DEVEL=y
-          CONFIG_CCACHE=y
-          CONFIG_KERNEL_DEVMEM=y
-          CONFIG_BUSYBOX_CUSTOM=y
-          CONFIG_BUSYBOX_CONFIG_DEVMEM=y
-          CONFIG_PACKAGE_luci=y
-          CONFIG_PACKAGE_luci-app-sqm=y
-          CONFIG_PACKAGE_sqm-scripts=y
-          CONFIG_PACKAGE_sqm-scripts-extra=y
-          CONFIG_PACKAGE_irqbalance=y
-          CONFIG_PACKAGE_luci-app-irqbalance=y
-          CONFIG_PACKAGE_luci-app-airoha-npu=y
-          CONFIG_PACKAGE_luci-app-airoha-flowsense=y
-          CONFIG_PACKAGE_luci-app-w1700k-fancontrol=y
-          CONFIG_PACKAGE_luci-app-netspeedtest=y
-          CONFIG_PACKAGE_luci-app-wifi7=y
-          CONFIG_PACKAGE_luci-app-ttyd=y
-          CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
-          CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
-          CONFIG_DROPBEAR_2242=n
-          EOF
+          cp "${{ github.workspace }}/builder-configs/configs/${{ matrix.profile }}.config" .config
           make defconfig
 
       - name: Validate target selection
@@ -393,7 +396,6 @@ jobs:
             exit 1
           }
           echo "Target econet_xr1710g-ubi confirmed"
-
 
       - name: Show build config
         run: grep -E "^CONFIG_" .config | sort
@@ -407,27 +409,42 @@ jobs:
         if: always()
         run: |
           mkdir -p release
-          cp bin/targets/airoha/an7581/*sysupgrade.itb release/ 2>/dev/null || true
-          cp bin/targets/airoha/an7581/*recovery.itb release/ 2>/dev/null || true
-          cp bin/targets/airoha/an7581/config.buildinfo release/ 2>/dev/null || true
-          cp build.log release/ 2>/dev/null || true
-          sha256sum release/*.itb > release/sha256sums.txt 2>/dev/null || echo "No .itb found" > release/sha256sums.txt
-          ls release/*sysupgrade.itb 1>/dev/null 2>&1 || { echo "FATAL: no .itb produced"; exit 1; }
-          ls release/*recovery.itb 1>/dev/null 2>&1 || echo "WARN: no recovery.itb produced"
+          cp bin/targets/airoha/an7581/*sysupgrade.itb release/XR1710G-${{ matrix.profile }}-sysupgrade.itb 2>/dev/null || true
+          cp bin/targets/airoha/an7581/*recovery.itb release/XR1710G-${{ matrix.profile }}-recovery.itb 2>/dev/null || true
+          cp bin/targets/airoha/an7581/config.buildinfo release/XR1710G-${{ matrix.profile }}-config.buildinfo 2>/dev/null || true
+          cp build.log release/XR1710G-${{ matrix.profile }}-build.log 2>/dev/null || true
+          sha256sum release/XR1710G-*-*sysupgrade.itb > release/XR1710G-${{ matrix.profile }}-sha256sums.txt 2>/dev/null || echo "No .itb found" > release/XR1710G-${{ matrix.profile }}-sha256sums.txt
+          ls release/XR1710G-${{ matrix.profile }}-*sysupgrade.itb 1>/dev/null 2>&1 || { echo "FATAL: no .itb produced"; exit 1; }
+          ls release/XR1710G-${{ matrix.profile }}-*recovery.itb 1>/dev/null 2>&1 || echo "WARN: no recovery.itb produced"
 
-      - name: Upload firmware
+      - name: Upload firmware artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: XR1710G-ImmortalWrt-offload
+          name: firmware-${{ matrix.profile }}
           path: release/
           retention-days: 30
 
+  release:
+    needs: [build]
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-all
+          pattern: firmware-*
+          merge-multiple: true
+
+      - name: List merged artifacts
+        run: |
+          ls -la release-all/
+
       - name: Create Release
-        if: success() && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: xr1710g-${{ github.run_number }}
           name: "XR1710G Build ${{ github.run_number }}"
-          files: release/*
+          files: release-all/*
           prerelease: false

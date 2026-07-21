@@ -1,0 +1,7 @@
+# Full third-party feeds
+# OpenClash + PassWall + PassWall packages + Lucky + iStore
+src-git openclash https://github.com/vernesong/OpenClash.git;master
+src-git passwall https://github.com/Openwrt-Passwall/openwrt-passwall.git;main
+src-git passwall_pkg https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main
+src-git lucky https://github.com/gdy666/luci-app-lucky.git;main
+src-git istore https://github.com/linkease/istore.git;main
