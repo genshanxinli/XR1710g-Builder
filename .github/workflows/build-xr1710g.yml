@@ -9,6 +9,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         profile: [lean, lite, full]
     runs-on: ubuntu-latest
@@ -427,7 +428,7 @@ jobs:
 
   release:
     needs: [build]
-    if: success()
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Download all firmware artifacts
@@ -437,9 +438,14 @@ jobs:
           pattern: firmware-*
           merge-multiple: true
 
-      - name: List merged artifacts
+      - name: Check at least one profile succeeded
         run: |
-          ls -la release-all/
+          if ! ls release-all/*sysupgrade.itb 1>/dev/null 2>&1; then
+            echo "FATAL: No profiles produced firmware"
+            exit 1
+          fi
+          echo "Profiles with artifacts:"
+          ls release-all/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
