@@ -48,7 +48,7 @@ jobs:
             ccache-
 
       - name: Apply XR1710G patches (overclock, YYH2913, device def, board.d)
-        uses: ./.github/actions/apply-patches
+        uses: ./builder-configs/.github/actions/apply-patches
 
       - name: Configure firmware (lean baseline for toolchain)
         run: |
@@ -130,7 +130,7 @@ jobs:
           key: tc-${{ hashFiles('toolchain/**', 'include/toolchain*.mk', 'target/linux/airoha/Makefile') }}
 
       - name: Apply XR1710G patches (overclock, YYH2913, device def, board.d)
-        uses: ./.github/actions/apply-patches
+        uses: ./builder-configs/.github/actions/apply-patches
 
       - name: Add third-party feeds (${{ matrix.profile }})
         if: matrix.profile != 'lean'
