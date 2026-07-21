@@ -386,8 +386,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-watchcat=y
           CONFIG_PACKAGE_luci-app-udpxy=y
           CONFIG_PACKAGE_luci-app-openclash=y
-          CONFIG_PACKAGE_luci-app-smartdns=y
-          CONFIG_PACKAGE_smartdns=y
           CONFIG_PACKAGE_sing-box=y
           CONFIG_PACKAGE_bash=y
           CONFIG_PACKAGE_htop=y
