@@ -171,6 +171,12 @@ jobs:
           ' target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh > /tmp/platform.sh
           mv /tmp/platform.sh target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh
           echo "platform.sh patched for econet,xr1710g-ubi"
+          grep -q 'econet,xr1710g-ubi' \
+            target/linux/airoha/an7581/base-files/lib/upgrade/platform.sh || {
+            echo "FATAL: platform.sh patch did not apply"
+            exit 1
+          }
+          echo "platform.sh verified: econet,xr1710g-ubi case present"
       - name: Add YYH2913 uci-defaults (flow offload, WiFi tuning, XR1710G WiFi)
         run: |
           mkdir -p files/etc/uci-defaults
