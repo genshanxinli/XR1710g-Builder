@@ -302,6 +302,41 @@ jobs:
           IRQBALANCE_ARGS="--hintpolicy=subset"
           IRQCONF
 
+
+      - name: Patch board.d scripts for XR1710G
+        run: |
+          # 02_network: add XR1710G network interface config
+          awk '
+          /^\tnokia,valyrian)/ && !done {
+            print "\teconet,xr1710g-ubi)"
+            print "\t\tucidef_set_interfaces_lan_wan \"lan1 lan2 lan3\" \"wan\""
+            print "\t\tucidef_set_country \"US\""
+            print "\t\tucidef_set_wireless \"2g\" \"XR1710G\""
+            print "\t\tucidef_set_wireless \"5g\" \"XR1710G-5G\""
+            print "\t\tucidef_set_wireless \"6g\" \"XR1710G-6G\""
+            print "\t\tucidef_set_root_password_plain \"password\""
+            print "\t\t;;"
+            done=1
+          }
+          { print }
+          ' target/linux/airoha/an7581/base-files/etc/board.d/02_network > /tmp/02_network
+          mv /tmp/02_network target/linux/airoha/an7581/base-files/etc/board.d/02_network
+          grep -q 'econet,xr1710g-ubi)' \
+            target/linux/airoha/an7581/base-files/etc/board.d/02_network || {
+            echo "FATAL: 02_network patch did not apply"
+            exit 1
+          }
+          echo "02_network: XR1710G interfaces added"
+
+          # 05_compat-version: add XR1710G (same 2.0 as w1700k-ubi)
+          sed -i '/gemtek,w1700k-ubi)/a\\\teconet,xr1710g-ubi)' \
+            target/linux/airoha/an7581/base-files/etc/board.d/05_compat-version
+          grep -q 'econet,xr1710g-ubi)' \
+            target/linux/airoha/an7581/base-files/etc/board.d/05_compat-version || {
+            echo "FATAL: 05_compat-version patch did not apply"
+            exit 1
+          }
+          echo "05_compat-version: XR1710G compat version set"
       - name: Update feeds (no third-party feeds — official only)
         run: |
           ./scripts/feeds update -a
@@ -360,10 +395,12 @@ jobs:
         run: |
           mkdir -p release
           cp bin/targets/airoha/an7581/*sysupgrade.itb release/ 2>/dev/null || true
+          cp bin/targets/airoha/an7581/*recovery.itb release/ 2>/dev/null || true
           cp bin/targets/airoha/an7581/config.buildinfo release/ 2>/dev/null || true
           cp build.log release/ 2>/dev/null || true
           sha256sum release/*.itb > release/sha256sums.txt 2>/dev/null || echo "No .itb found" > release/sha256sums.txt
           ls release/*sysupgrade.itb 1>/dev/null 2>&1 || { echo "FATAL: no .itb produced"; exit 1; }
+          ls release/*recovery.itb 1>/dev/null 2>&1 || echo "WARN: no recovery.itb produced"
 
       - name: Upload firmware
         if: always()
