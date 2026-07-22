@@ -145,9 +145,7 @@ jobs:
             $YYH_RAW/330-net-airoha-use-device_set_node-helper-to-setup-GDM-node.patch
           curl -sSL --retry 3 --retry-delay 5 -o target/linux/airoha/patches-6.18/920-hwrng-airoha-fix-init-sequence-default-to-DRBG.patch \
             $YYH_RAW/920-hwrng-airoha-fix-init-sequence-default-to-DRBG.patch
-          curl -sSL --retry 3 --retry-delay 5 -o target/linux/airoha/patches-6.18/920-cpufreq-airoha-handle-positive-pm-domain-attach-count.patch \
-            $YYH_RAW/920-cpufreq-airoha-handle-positive-pm-domain-attach-count.patch
-          echo "YYH2913 patches applied (995-01~04, 330, 911-913, 920-hwrng, 920-cpufreq)"
+          echo "YYH2913 patches applied (995-01~04, 330, 911-913, 920-hwrng)"
 
       - name: Enable bridge flow table kernel config
         run: |
