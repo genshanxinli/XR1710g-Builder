@@ -99,8 +99,19 @@ jobs:
           sed -i 's/unsigned int freq_mhz = 500 + state \* 50;/unsigned int freq_mhz = 700 + state * 50;/' \
             target/linux/airoha/patches-6.18/940-pmdomain-airoha-Add-Airoha-CPU-PM-Domain-support.patch
 
+          # Fix mac80211.sh: netifd passes 'country' but offload checks 'country_code'
+          sed -i 's/config\.country_code/config.country/' \
+            package/network/config/wifi-scripts/files-ucode/lib/netifd/wireless/mac80211.sh
+          echo "mac80211.sh: country_code->country fixed"
           echo "Overclock +200MHz applied"
 
+          # Force EHT beamforming in hostapd.uc for MT7996
+          sed -i '/"eht_oper_chwidth", "eht_oper_centr_freq_seg0_idx",/a\
+          append_raw("eht_su_beamformer=1");\
+          append_raw("eht_su_beamformee=1");\
+          append_raw("eht_mu_beamformer=1");' \
+            package/network/services/hostapd/files/hostapd.uc
+          echo "hostapd.uc: EHT beamforming forced on"
       - name: Apply YYH2913 XR1710G patches and DTS
         run: |
           set -ex
@@ -118,6 +129,25 @@ jobs:
           # airoha.mk: NPU firmware package definitions (missing from offload)
           curl -sSL --retry 3 --retry-delay 5 -o package/firmware/linux-firmware/airoha.mk \
             https://raw.githubusercontent.com/YYH2913/openwrt/xr1710g-6.18-integration/package/firmware/linux-firmware/airoha.mk
+          # Remove conflicting offload PCIe patches (YYH2913's 911-912-913 replace them)
+          rm -f target/linux/airoha/patches-6.18/609-02-clk-en7523-add-support-for-dedicated-PCIe-PERSTOUT-r.patch
+          rm -f target/linux/airoha/patches-6.18/609-04-PCI-mediatek-gen3-Add-2-lanes-mode-support-for-Airoh.patch
+          rm -f target/linux/airoha/patches-6.18/913-clk-en7523-reset-PCIE-HB-on-init.patch
+          # PCIe x2 link support and clock fixes (missing from offload)
+          curl -sSL --retry 3 --retry-delay 5 -o target/linux/airoha/patches-6.18/911-clk-en7581-Separate-PERST-from-refclk-in-PCIe-clock.patch \
+            $YYH_RAW/911-clk-en7581-Separate-PERST-from-refclk-in-PCIe-clock.patch
+          curl -sSL --retry 3 --retry-delay 5 -o target/linux/airoha/patches-6.18/912-pcie-mediatek-gen3-Add-x2-link-support-for-Airoha-EN7581.patch \
+            $YYH_RAW/912-pcie-mediatek-gen3-Add-x2-link-support-for-Airoha-EN7581.patch
+          curl -sSL --retry 3 --retry-delay 5 -o target/linux/airoha/patches-6.18/913-pcie-mediatek-gen3-fix-x2-mode-PERST-deassert.patch \
+            $YYH_RAW/913-pcie-mediatek-gen3-fix-x2-mode-PERST-deassert.patch
+          # Extra YYH2913 fix patches (safety net)
+          curl -sSL --retry 3 --retry-delay 5 -o target/linux/airoha/patches-6.18/330-net-airoha-use-device_set_node-helper-to-setup-GDM-node.patch \
+            $YYH_RAW/330-net-airoha-use-device_set_node-helper-to-setup-GDM-node.patch
+          curl -sSL --retry 3 --retry-delay 5 -o target/linux/airoha/patches-6.18/920-hwrng-airoha-fix-init-sequence-default-to-DRBG.patch \
+            $YYH_RAW/920-hwrng-airoha-fix-init-sequence-default-to-DRBG.patch
+          curl -sSL --retry 3 --retry-delay 5 -o target/linux/airoha/patches-6.18/920-cpufreq-airoha-handle-positive-pm-domain-attach-count.patch \
+            $YYH_RAW/920-cpufreq-airoha-handle-positive-pm-domain-attach-count.patch
+          echo "YYH2913 patches applied (995-01~04, 330, 911-913, 920-hwrng, 920-cpufreq)"
 
       - name: Enable bridge flow table kernel config
         run: |
@@ -234,7 +264,7 @@ jobs:
           exit 0
           EOF
 
-          # 17-xr1710g-wifi-defaults — XR1710G band-specific defaults
+          # 17-xr1710g-wifi-defaults — XR1710G band-specific defaults + MLD setup
           cat > files/etc/uci-defaults/17-xr1710g-wifi-defaults << 'EOF'
           #!/bin/sh
           . /lib/functions.sh
@@ -262,7 +292,20 @@ jobs:
             changed=1
           }
           config_foreach set_xr1710g_radio_defaults wifi-device
+          # Enable default AP ifaces with SSID/PSK
+          for n in 0 1 2; do
+            if uci -q get wireless.default_radio${n} >/dev/null; then
+              uci set wireless.default_radio${n}.disabled='0'
+              uci set wireless.default_radio${n}.ssid='XR1710G'
+              uci set wireless.default_radio${n}.encryption='sae-mixed'
+              uci set wireless.default_radio${n}.key='12345678'
+              changed=1
+            fi
+          done
           [ "$changed" -eq 1 ] && uci commit wireless
+          # Force admin-full LUCI interface (bootstrap theme)
+          uci -q set luci.main.mediaurlbase='/cgi-bin/luci/admin/contents'
+          uci -q commit luci
           exit 0
           EOF
 
@@ -281,17 +324,22 @@ jobs:
         run: |
           mkdir -p files/etc/hotplug.d/net
 
-          # 50-flow-offload-wifi — trigger flow offload on WiFi ifup
+          # 50-flow-offload-wifi — trigger flow offload on WiFi/MLD iface up
           cat > files/etc/hotplug.d/net/50-flow-offload-wifi << 'EOF'
           #!/bin/sh
-          # Reinstall nft flowtable rules after a wifi iface comes up
-          [ "$ACTION" = "ifup" ] || exit 0
-          case "$INTERFACE" in
-            wl*|phy*|radio*) ;;
+          case "$ACTION" in
+            add|move) ;;
             *) exit 0 ;;
           esac
-          sleep 2
-          /etc/init.d/firewall reload 2>/dev/null
+          DEV="${DEVICENAME:-$INTERFACE}"
+          [ -n "$DEV" ] || exit 0
+          case "$DEV" in
+            phy*-ap*|ap-mld*) ;;
+            *) exit 0 ;;
+          esac
+          [ -f /tmp/.flow-offload-wifi-pending ] && exit 0
+          touch /tmp/.flow-offload-wifi-pending
+          ( sleep 1; rm -f /tmp/.flow-offload-wifi-pending; /etc/init.d/firewall reload 2>/dev/null ) &
           EOF
 
           # 50-nf-bridge-call — trigger bridge flowtable reinstall
